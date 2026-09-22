@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: raspisanie
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn Backend:app
+    plan: free

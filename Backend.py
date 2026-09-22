@@ -84,13 +84,18 @@ def update_table(table_id):
 
 @app.delete('/api/tables/<table_id>')
 def delete_table(table_id):
+    filepath = os.path.join(SAVES_DIR, f'{table_id}.json')
+
     if table_id == SCHEDULE_TEMPLATE[:-5]:
         return jsonify({'error': 'Пример нельзя удалить'}), 400
+
     if '/' in table_id or '\\' in table_id:
         return jsonify({'error': 'Некорректное имя таблицы'}), 400
-    filepath = os.path.join(SAVES_DIR, f'{table_id}.json')
+
+    
     if not os.path.isfile(filepath):
         return jsonify({'error': 'Таблица не найдена'}), 404
+
     os.remove(filepath)
     return jsonify({'success': True})
 
