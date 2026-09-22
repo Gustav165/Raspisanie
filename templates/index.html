@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Расписание</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background-color: #0e0e0e; color: #e6eef8; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .tab-layout { display: flex; align-items: flex-start; gap: 20px; }
+    .sidebar { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; width: 200px; }
+    .tabs-panel { width: 100%; transition: width 0.25s ease; overflow: hidden; }
+    .tabs-panel.collapsed { width: 56px; }
+    .tabs-panel.collapsed .tabs { display: none; }
+    .panel-toggle { width: 100%; background: #1a1a1b; color: #fff; border: 1px solid #2b2f36; border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 18px; line-height: 1; position: relative; z-index: 2; }
+    .tabs { display: flex; flex-direction: column; min-width: 180px; border-right: 2px solid #0a0a0a; padding-right: 10px; transition: all 0.25s ease; }
+    .tab-btn { background-color: transparent; border: 1px solid transparent; border-right: none; outline: none; cursor: pointer; padding: 12px 18px; font-size: 16px; font-weight: bold; transition: 0.2s; margin-bottom: 5px; color: #cbd5e1; text-align: left; white-space: nowrap; }
+    .tab-btn:hover { background-color: rgba(255,255,255,0.03); }
+    .tab-btn.active { background-color: #0f0f0f; color: #ffffff; border: 1px solid #2b2f36; border-right: none; }
+    .tab-content { display: none; animation: blurReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; flex: 1; min-width: 0; }
+    .tab-content.active { display: block; }
+    .modern-table { width: 100%; border-collapse: collapse; box-shadow: 0 4px 30px rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.06); overflow: hidden; background-color: #0f0f0f; color: #e6eef8; }
+    .modern-table caption { caption-side: top; padding: 8px 12px; font-weight: 600; color: #cbd5e1; text-align: left; }
+    .modern-table thead tr { background-color: #0f0f0f; color: #bcbcbc; text-align: left; }
+    .modern-table th, .modern-table td { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .modern-table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .modern-table tbody tr:hover { background-color: rgba(255,255,255,0.04); cursor: pointer; }
+    .add-btn { width: 100%; border: 1px solid #2b2f36; border-radius: 6px; padding: 9px; color: #e6eef8; background: #1a1a1b; cursor: pointer; font-size: 20px; }
+    .add-btn:hover { background: #25262a; }
+    .cell-editable { cursor: text; }
+    .cell-editable:focus { outline: 2px solid #52657a; outline-offset: -2px; background: #171b20; }
+    .table-name { margin: 0 0 12px; padding: 6px 8px; cursor: text; }
+    .table-name:focus { outline: 2px solid #52657a; outline-offset: 2px; }
+    .table-heading { display: flex; align-items: center; gap: 10px; }
+    .delete-btn { border: 1px solid #63343b; border-radius: 6px; padding: 6px 10px; color: #f0b8bf; background: #241417; cursor: pointer; }
+    .delete-btn:hover { background: #3a1b20; }
+    .row-delete { width: 34px; padding: 5px; }
+    .row-add { margin-top: 8px; width: 42px; }
+    .status { min-height: 20px; margin-top: 8px; color: #9aa7b6; font-size: 13px; }
+    
+    @media (max-width: 700px) {
+      body { padding: 12px; }
+      .tab-layout { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .tabs-panel, .tabs-panel.collapsed { width: 100%; }
+      .tabs-panel.collapsed .tabs { display: none; }
+      .tabs { min-width: 0; border-right: none; padding-right: 0; }
+      .tab-content { width: 100%; overflow-x: auto; }
+      .modern-table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="tab-layout">
+    <div class="sidebar">
+      <button class="panel-toggle" id="toggleTabs" aria-label="Скрыть панель">☰</button>
+      <aside class="tabs-panel" id="tabsPanel">
+        <!-- Кнопки вкладок будут генерироваться сюда -->
+        <div class="tabs" id="tabsContainer"></div>
+        <button class="add-btn" id="addTable" title="Добавить таблицу" aria-label="Добавить таблицу">+</button>
+      </aside>
+    </div>
+
+    <!-- Таблицы будут генерироваться сюда -->
+    <main id="tablesContainer" style="width: 100%;"><div id="tableViews"></div></main>
+  </div>
+
+  <script>
+    // --- Логика сайдбара ---
+    const tabsPanel = document.getElementById('tabsPanel');
+    const toggleTabs = document.getElementById('toggleTabs');
+
+    toggleTabs.addEventListener('click', () => {
+      tabsPanel.classList.toggle('collapsed');
+      toggleTabs.textContent = tabsPanel.classList.contains('collapsed') ? '☰' : '✕';
+      toggleTabs.setAttribute('aria-label', tabsPanel.classList.contains('collapsed') ? 'Открыть панель' : 'Скрыть панель');
+    });
+
+    // --- Логика переключения вкладок ---
+    function openTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      document.getElementById(`btn-${tabId}`).classList.add('active');
+    }
+
+    async function saveTable(table, tableElement, status, nameElement) {
+      if (table.id === 'lol2') {
+        status.textContent = 'Пример нельзя изменить';
+        return;
+      }
+      const data = [...tableElement.tBodies[0].rows].map(row =>
+        [...row.cells].slice(0, table.headers.length).map(cell => cell.textContent.trim())
+      );
+      const name = nameElement ? nameElement.textContent.trim() : table.name;
+      const response = await fetch(`/api/tables/${encodeURIComponent(table.id)}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name || 'Расписание', headers: table.headers, data})
+      });
+      status.textContent = response.ok ? 'Сохранено' : 'Не удалось сохранить изменения';
+      if (response.ok) {
+        table.name = name || 'Расписание';
+        table.data = data;
+        document.getElementById(`btn-${table.id}`).textContent = table.name;
+      }
+    }
+
+    function exampleValue(header, index) {
+      const normalizedHeader = header.toLowerCase();
+      if (normalizedHeader.includes('номер') || normalizedHeader.includes('№')) return String(index + 1);
+      if (normalizedHeader.includes('время')) return '10:00';
+      if (normalizedHeader.includes('класс') || normalizedHeader.includes('группа')) return '11А';
+      if (normalizedHeader.includes('предмет')) return 'Новый предмет';
+      if (normalizedHeader.includes('дата')) return '01.09.2026';
+      return 'Пример информации';
+    }
+
+    async function createRow(table, tableElement, values, status, nameElement) {
+      if (table.id === 'lol2') {
+        status.textContent = 'Пример нельзя изменить';
+        return;
+      }
+      const row = tableElement.tBodies[0].insertRow();
+      table.headers.forEach((_, index) => {
+        const cell = row.insertCell();
+        cell.className = 'cell-editable';
+        cell.contentEditable = 'true';
+        cell.textContent = values[index] || exampleValue(table.headers[index], table.data.length);
+        cell.addEventListener('blur', () => saveTable(table, tableElement, status, nameElement));
+      });
+      const actionCell = row.insertCell();
+      addRowDeleteButton(actionCell, table, tableElement, status, nameElement);
+      await saveTable(table, tableElement, status, nameElement);
+    }
+
+    function addRowDeleteButton(cell, table, tableElement, status, nameElement) {
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'delete-btn row-delete';
+      deleteButton.textContent = '×';
+      deleteButton.title = 'Удалить строку';
+      deleteButton.onclick = () => {
+        if (table.id === 'lol2') {
+          status.textContent = 'Пример нельзя изменить';
+          return;
+        }
+        cell.parentElement.remove();
+        saveTable(table, tableElement, status, nameElement);
+      };
+      cell.appendChild(deleteButton);
+    }
+
+    function tableOrder(table) {
+      const name = (table.name || '').trim().toLowerCase().replace('ё', 'е');
+      const weekdays = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+      const dayIndex = weekdays.findIndex(day => name.startsWith(day));
+      if (dayIndex !== -1) return dayIndex;
+      if (table.id === 'lol2') return weekdays.length;
+      return weekdays.length + 1;
+    }
+
+    function buildInterface(tables) {
+      tables.sort((left, right) => {
+        const orderDifference = tableOrder(left) - tableOrder(right);
+        if (orderDifference !== 0) return orderDifference;
+        return (left.name || left.id).localeCompare(right.name || right.id, 'ru');
+      });
+      const tabsContainer = document.getElementById('tabsContainer');
+      const tablesContainer = document.getElementById('tableViews');
+      tabsContainer.innerHTML = '';
+      tablesContainer.innerHTML = '';
+      if (tables.length === 0) { tablesContainer.innerHTML = '<p>Нет расписания.</p>'; return; }
+
+      tables.forEach((table, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn';
+        btn.id = `btn-${table.id}`;
+        btn.textContent = table.name || table.id;
+        btn.onclick = () => openTab(table.id);
+        tabsContainer.appendChild(btn);
+
+        const tabContent = document.createElement('div');
+        tabContent.id = table.id;
+        tabContent.className = 'tab-content';
+        const heading = document.createElement('div');
+        heading.className = 'table-heading';
+        const tableName = document.createElement('h2');
+        tableName.className = 'table-name';
+        tableName.contentEditable = table.id !== 'lol2';
+        tableName.textContent = table.name || table.id;
+        const deleteTable = document.createElement('button');
+        deleteTable.className = 'delete-btn';
+        deleteTable.textContent = 'Удалить таблицу';
+        deleteTable.disabled = table.id === 'lol2';
+        deleteTable.title = deleteTable.disabled ? 'Исходное расписание нельзя удалить' : 'Удалить таблицу';
+        deleteTable.onclick = async () => {
+          if (!confirm(`Удалить таблицу «${table.name}»?`)) return;
+          const response = await fetch(`/api/tables/${encodeURIComponent(table.id)}`, {method: 'DELETE'});
+          if (!response.ok) { alert('Не удалось удалить таблицу'); return; }
+          await loadTables();
+        };
+        heading.appendChild(tableName);
+        heading.appendChild(deleteTable);
+        tabContent.appendChild(heading);
+        let tableHTML = '<table class="modern-table"><thead><tr>';
+        table.headers.forEach(header => { tableHTML += `<th scope="col">${header}</th>`; });
+        tableHTML += '<th scope="col"></th></tr></thead><tbody>';
+        table.data.forEach(row => { tableHTML += `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}<td></td></tr>`; });
+        tableHTML += '</tbody></table>';
+        const tableMarkup = document.createElement('div');
+        tableMarkup.innerHTML = tableHTML;
+        tabContent.appendChild(tableMarkup.firstElementChild);
+        const tableElement = tabContent.querySelector('.modern-table');
+        const status = document.createElement('div');
+        status.className = 'status';
+        const addRow = document.createElement('button');
+        addRow.className = 'add-btn row-add';
+        addRow.textContent = '+';
+        addRow.title = 'Добавить строку';
+        if (table.id === 'lol2') addRow.title = 'Пример нельзя изменить';
+        addRow.onclick = () => createRow(table, tableElement, [], status, tableName);
+        tabContent.appendChild(addRow);
+        tabContent.appendChild(status);
+        tableName.addEventListener('blur', () => saveTable(table, tableElement, status, tableName));
+        tableName.addEventListener('click', () => {
+          if (table.id === 'lol2') status.textContent = 'Пример нельзя изменить';
+        });
+        [...tableElement.tBodies[0].rows].forEach(row => {
+          [...row.cells].slice(0, table.headers.length).forEach(cell => {
+            cell.className = 'cell-editable';
+            cell.contentEditable = table.id !== 'lol2';
+            cell.addEventListener('blur', () => saveTable(table, tableElement, status, tableName));
+            cell.addEventListener('click', () => {
+              if (table.id === 'lol2') status.textContent = 'Пример нельзя изменить';
+            });
+          });
+          addRowDeleteButton(row.cells[table.headers.length], table, tableElement, status, tableName);
+        });
+        tablesContainer.appendChild(tabContent);
+        if (index === 0) { btn.classList.add('active'); tabContent.classList.add('active'); }
+      });
+    }
+
+    async function loadTables() {
+      const response = await fetch('/api/tables');
+      if (!response.ok) throw new Error('Ошибка сети');
+      buildInterface(await response.json());
+    }
+
+    document.getElementById('addTable').onclick = async () => {
+      const response = await fetch('/api/tables', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+      if (!response.ok) { alert('Не удалось добавить таблицу'); return; }
+      const newTable = await response.json();
+      await loadTables();
+      openTab(newTable.id);
+    };
+
+    loadTables().catch(error => console.error('Ошибка загрузки данных:', error));
+  </script>
+</body>
+</html>
